@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Beginner's Guide to React</title>
+    <meta charset="UTF-8" />
+</head>
+<body>
+    <div id="root"></div>
+    <script src="https://unpkg.com/react@16.3.1/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@16.3.1/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/prop-types@15.6.1/prop-types.js"></script>
+    <script src="https://unpkg.com/babel-standalone@6.26.0/babel.js"></script>
+    
+    <script src="./redux.js"></script>
+    <script src="./reducers.js"></script>
+
+    <script type="text/babel">
+
+        const { createStore } = Redux;
+
+        // Provider from ReactRedux
+
+        class Provider extends React.Component {
+
+            static childContextTypes = {
+                store: PropTypes.object
+            }
+
+            getChildContext() {
+                return {
+                store: this.props.store
+                }; 
+            }
+
+            render() {
+                return this.props.children;
+            }
+        }
+
+        // AddTodo
+        let nextTodoId = 0;
+        class AddTodo extends React.Component {
+            static contextTypes = {
+                store: PropTypes.object
+            }
+
+            render() {
+                const { store } = this.context;
+
+                return (
+                    <div>
+                        <input ref={node => this.input = node} />
+                        <button onClick={() => {
+                            store.dispatch({
+                                type: 'ADD_TODO',
+                                id: nextTodoId++,
+                                text: this.input.value
+                            });
+                            this.input.value = '';
+                        }}>
+                            Add Todo
+                        </button>
+                    </div>
+                );
+            }
+        }
+
+        // Todo
+        class Todo extends React.Component {
+            render() {
+                const { text, completed, onClick} = this.props;
+
+                return (
+                <li
+                    onClick={onClick}
+                    style={{ textDecoration: completed
+                        ? 'line-through'
+                        : 'none'
+                    }}
+                >
+                    {text}
+                </li>
+                );
+            }
+        }
+
+        // TodoList
+        class TodoList extends React.Component {
+            render() {
+                const { todos, onTodoClick} = this.props;
+
+                return (
+                    <ul>
+                        {todos.map(todo =>
+                            <Todo
+                                key={todo.id}
+                                {...todo}
+                                onClick={() => onTodoClick(todo.id)}
+                            />
+                        )}
+                    </ul>
+                );
+            }
+        }
+
+        const getVisibleTodos = (todos = [], filter) => {
+            switch (filter) {
+                case 'SHOW_ALL':
+                    return todos;
+                case 'SHOW_COMPLETED':
+                    return todos.filter(t => t.completed);
+                case 'SHOW_ACTIVE':
+                    return todos.filter(t => !t.completed);
+                default:
+                    return todos;
+            }
+        }
+        
+        class VisibleTodoList extends React.Component {
+
+            static contextTypes = {
+                store: PropTypes.object
+            }
+
+            componentDidMount() {
+                const { store } = this.context;
+                this.unsubscribe = store.subscribe(() => this.forceUpdate());
+            }
+
+            componentWillUnmount() {
+                this.unsubscribe();
+            }
+
+            render() {
+                const props = this.props;
+                const { store } = this.context;
+                const state = store.getState();
+                const { todos, visibilityFilter } = state;
+                
+                return (
+                    <TodoList
+                        todos={getVisibleTodos(todos, visibilityFilter)}
+                        onTodoClick={id => store.dispatch({
+                            type: 'TOGGLE_TODO',
+                            id
+                        })}
+                    />
+                );
+            }
+        }
+
+        // Link
+        class Link extends React.Component {
+            render () {
+                const { active, children, onClick } = this.props;
+
+                if (active) {
+                    return <span>{children}</span>;
+                }
+
+                return (
+                    <a href='#'
+                        onClick={e => {
+                            e.preventDefault();
+                            onClick();
+                        }}
+                    >
+                        {children}
+                    </a>
+                );
+            }
+        }
+
+        // FilterLink
+        class FilterLink extends React.Component {
+
+            static contextTypes = {
+                store: PropTypes.object
+            }
+
+            componentDidMount() {
+                const { store } = this.context;
+                this.unsubscribe = store.subscribe(() => this.forceUpdate());
+            }
+
+            componentWillUnmount() {
+                this.unsubscribe();
+            }
+
+            render() {
+                const props = this.props;
+                const { store } = this.context;
+                const state = store.getState();
+
+                return (
+                    <Link
+                        active={ props.filter === state.visibilityFilter }
+                        onClick={() => store.dispatch({
+                            type: 'SET_VISIBILITY_FILTER',
+                            filter: props.filter
+                        })}
+                    >
+                        {props.children}
+                    </Link>
+                );
+            }
+        }
+
+        // Footer
+        class Footer extends React.Component {
+            render () {
+                return (
+                    <p>
+                        Show: {' '}
+                        <FilterLink filter='SHOW_ALL'>
+                            All
+                        </FilterLink>
+                        {', '}
+                        <FilterLink filter='SHOW_ACTIVE'>
+                            Active
+                        </FilterLink>
+                        {', '}
+                        <FilterLink filter='SHOW_COMPLETED'>
+                            Completed
+                        </FilterLink>
+                    </p>
+                );
+            }
+        }
+
+        const TodoApp = () => (
+            <div>
+                <AddTodo />
+                <VisibleTodoList />
+                <Footer />
+            </div>
+        );
+
+        ReactDOM.render(
+            <Provider store={createStore(todoApp)}>
+                <TodoApp />
+            </Provider>,
+            document.getElementById('root')
+        );
+    </script>
+</body>
+</html>
